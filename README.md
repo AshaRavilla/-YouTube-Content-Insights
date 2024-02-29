@@ -1,1 +1,1 @@
-# -YouTube-Content-Insights
+# YouTube-Content-Insights
