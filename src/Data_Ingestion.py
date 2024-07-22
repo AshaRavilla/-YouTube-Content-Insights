@@ -6,13 +6,13 @@ import json
 from io import StringIO
 
 # List of simple to collect features
-snippet_features = ["title", "publishedAt", "channelId", "channelTitle", "categoryId"]
+snippet_features = ["channelId" , "title" ]
 
 # Any characters to exclude, generally these are things that become problematic in CSV files
 unsafe_characters = ['\n', '"']
 
 # Used to identify columns, currently hardcoded order
-header = ["video_id"] + snippet_features + ["trending_date", "tags", "view_count", "likes", "dislikes",
+header = ["video_id"] + ["trending_date", "title" , "channelTitle", "categoryId","publishedAt", "tags", "view_count", "likes", "dislikes",
                                             "comment_count", "thumbnail_link", "comments_disabled",
                                             "ratings_disabled", "description"]
 
@@ -85,15 +85,30 @@ def get_videos(items):
 
 def get_pages(country_code, api_key, next_page_token="&"):
     country_data = []
-
+    filtered_json_data = []
     while next_page_token is not None:
         video_data_page = api_request(next_page_token, country_code, api_key)
         next_page_token = video_data_page.get("nextPageToken", None)
         next_page_token = f"&pageToken={next_page_token}&" if next_page_token is not None else next_page_token
         items = video_data_page.get('items', [])
         country_data += get_videos(items)
+        
+        kind = video_data_page.get("kind", "")
+        etag = video_data_page.get("etag", "")
+        
+        for item in items:
+            filtered_item = {
+                "kind": item.get("kind", ""),
+                "etag": item.get("etag", ""),
+                "id": item.get("id", ""),
+                "snippet": {
+                    "channelId": item.get("snippet", {}).get("channelId", ""),
+                    "title": item.get("snippet", {}).get("title", "")
+                }
+            }
+            filtered_json_data.append(filtered_item)
 
-    return country_data, video_data_page  # Return both CSV data and raw JSON data
+    return country_data, kind, etag, filtered_json_data  # Return both CSV data and raw JSON data with kind and etag
 
 
 def upload_to_s3(bucket_name, file_name, content):
@@ -130,27 +145,42 @@ def lambda_handler(event, context):
     bucket_name = os.getenv('BUCKET_NAME')
     output_prefix_csv = os.getenv('OUTPUT_PREFIX_CSV', '')
     output_prefix_json = os.getenv('OUTPUT_PREFIX_JSON', '')
-    
 
     for country_code in country_codes:
-        csv_data, json_data = get_pages(country_code, api_key)
+        csv_data, kind, etag, filtered_json_data = get_pages(country_code, api_key)
         
         # Upload CSV file
         csv_buffer = StringIO()
         csv_buffer.write("\n".join([",".join(header)] + csv_data))
-
+        
         # Create the region-specific folder path
         region_folder = f"region={country_code}/"
-
+        
         # Combine the paths to create the full folder path
         full_folder_path = os.path.join(output_prefix_csv, region_folder)
-
+        
         csv_file_name = f"{full_folder_path}{country_code}videos.csv"
         upload_to_s3(bucket_name, csv_file_name, csv_buffer.getvalue())
+
+       # csv_file_name = f"{output_prefix}{time.strftime('%y.%d.%m')}_{country_code}_videos.csv"
+       # upload_to_s3(bucket_name, csv_file_name, csv_buffer.getvalue())
+       
+       
+        # Wrap the JSON data inside a root object
+        wrapped_json_data = {
+            "kind": kind,
+            "etag": etag,
+            "items": filtered_json_data
+        }
+        
         
         # Upload JSON file
         json_file_name = f"{output_prefix_json}{country_code}_category_id.json"
-        write_json_to_s3(bucket_name, json_file_name, json_data)
+        write_json_to_s3(bucket_name, json_file_name, wrapped_json_data)
+        
+        # Upload JSON file
+        #json_file_name = f"{output_prefix}{time.strftime('%y.%d.%m')}_{country_code}_videos.json"
+        #write_json_to_s3(bucket_name, json_file_name, filtered_json_data)
 
     return {
         'statusCode': 200,
