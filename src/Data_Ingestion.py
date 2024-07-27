@@ -6,15 +6,15 @@ import json
 from io import StringIO
 
 # List of simple to collect features
-snippet_features = ["channelId" , "title" ]
+snippet_features = ["title" ]
 
 # Any characters to exclude, generally these are things that become problematic in CSV files
 unsafe_characters = ['\n', '"']
 
 # Used to identify columns, currently hardcoded order
-header = ["video_id"] + ["trending_date", "title" , "channelTitle", "categoryId","publishedAt", "tags", "view_count", "likes", "dislikes",
+header = ["video_id"] + ["trending_date", "title" , "channelTitle", "categoryId","publish_time", "tags", "views", "likes", "dislikes",
                                             "comment_count", "thumbnail_link", "comments_disabled",
-                                            "ratings_disabled", "description"]
+                                            "ratings_disabled","video_error_or_removed" ,"description"]
 
 # Initialize S3 client
 s3_client = boto3.client('s3')
@@ -48,7 +48,7 @@ def get_videos(items):
     for video in items:
         comments_disabled = False
         ratings_disabled = False
-
+        video_error_or_removed = False
         if "statistics" not in video:
             continue
 
@@ -56,7 +56,10 @@ def get_videos(items):
         snippet = video['snippet']
         statistics = video['statistics']
         features = [prepare_feature(snippet.get(feature, "")) for feature in snippet_features]
+        channel_title = snippet.get("channelTitle", "")
         description = snippet.get("description", "")
+        category_id = snippet.get("categoryId", "")
+        publish_time = snippet.get("publishedAt", "") 
         thumbnail_link = snippet.get("thumbnails", {}).get("default", {}).get("url", "")
         trending_date = time.strftime("%y.%d.%m")
         tags = get_tags(snippet.get("tags", ["[none]"]))
@@ -76,9 +79,10 @@ def get_videos(items):
             comments_disabled = True
             comment_count = 0
 
-        line = [video_id] + features + [prepare_feature(x) for x in [trending_date, tags, view_count, likes, dislikes,
+        line = [video_id] +[prepare_feature(trending_date)]+ features + [prepare_feature(x) for x in [channel_title, category_id, publish_time, tags, view_count, likes, dislikes,
                                                                      comment_count, thumbnail_link, comments_disabled,
-                                                                     ratings_disabled, description]]
+                                                                     ratings_disabled,video_error_or_removed, description]]
+
         lines.append(",".join(line))
     return lines
 
@@ -100,7 +104,7 @@ def get_pages(country_code, api_key, next_page_token="&"):
             filtered_item = {
                 "kind": item.get("kind", ""),
                 "etag": item.get("etag", ""),
-                "id": item.get("id", ""),
+                "id": item.get("snippet", {}).get("categoryId", ""),
                 "snippet": {
                     "channelId": item.get("snippet", {}).get("channelId", ""),
                     "title": item.get("snippet", {}).get("title", "")
