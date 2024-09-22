@@ -1,4 +1,4 @@
-API_KEY = AIzaSyBpYH5_VhXVtZBwCr7bQqlut20QkeDzGfI
+API_KEY = ------------------
 BUCKET_NAME = ashade-on-youtube-raw-useast1-dev
 COUNTRY_CODES = CA,US
 OUTPUT_PREFIX_CSV = youtube/raw_statistics/
