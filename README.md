@@ -24,5 +24,8 @@ In addition to video-specific data, category metadata is also included, allowing
 The raw data is ingested daily, stored in Amazon S3, and processed to extract meaningful analytics, such as the most popular video categories, top content creators, and regional trends over time.
 
 ## Scripts for Project
-1.[Extract.py](Data_ingestion.py)
+1.[Extract.py](src/Data_ingestion.py)
+2.[Transformation_Category_data.py](src/Data_Transformation_category_JSON_to_Parquet.py)
+3.[Transformation_video_data.py](src/Data_Transformation_CSV_parquet.py)
+4.[Load.py](src/video_category_join.py)
 
